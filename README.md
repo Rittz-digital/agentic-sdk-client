@@ -5,7 +5,7 @@ plumbing so an integration is three pieces instead of hand-rolling `fetch` + NDJ
 session tracking: **describe your schema**, **implement one query function**, **call `runTurn`**.
 
 The SDK itself never touches your database — every query it needs comes back through your own
-callback endpoint. See the root `agentic-sdk/` service's docs for why.
+callback endpoint you implement below.
 
 ## Using this with a coding agent
 
@@ -34,9 +34,9 @@ npm install @hanexis/agentic-sdk-client
 
 ## 1. Get an API key
 
-Ask whoever runs the SDK instance to issue you one (`npm run keys create <your-app-name>` on
-their side). You'll get a key that looks like `ask_...` — store it as a secret
-(`AGENTIC_SDK_API_KEY`), never commit it.
+Ask whoever runs your SDK instance to issue you one — see that deployment's own key-management
+tooling. You'll get a key (typically looking like `ask_...`); store it as a secret, never commit
+it.
 
 ## 2. Describe your schema
 
@@ -53,16 +53,14 @@ descriptions, no roles, no relationships. The SDK works the rest out itself:
 All of it is cached per schema structure, so this runs once, not once per turn. Change your models
 and it re-runs automatically.
 
-**If you're on Mongoose**, extract it by walking a live `mongoose.Schema` (`schema.eachPath(...)`);
-this package's reference integration does exactly that — see `lib/ai/schema-extractor.ts` and
-`lib/ai/sdk-client/descriptor.ts` in the Hanexis Next.js app. **On anything else**, build the same
-shape from whatever introspection your stack offers.
+**If you're on Mongoose**, extract it by walking a live `mongoose.Schema` (`schema.eachPath(...)`) —
+see [SKILL-mongodb.md](./SKILL-mongodb.md) for a worked example. **On anything else**, build the
+same shape from whatever introspection your stack offers.
 
 `role`, `description`, `relationships` and `fieldSemantics` are all OPTIONAL. Supply one and the
 SDK treats it as a stated fact and will not overwrite it; omit it and the SDK fills it in. The
-example below shows every field for reference — a real caller sends far less (see
-`getSdkBareModelsDescriptor` in the reference integration, which sends only `modelName`,
-`collectionName`, `fields` and `looseSchema`):
+example below shows every field for reference — a real caller sends far less, typically just
+`modelName`, `collectionName`, `fields` and `looseSchema`:
 
 ```ts
 // lib/sdk-schema.ts
@@ -98,7 +96,7 @@ export function getMySchemaDescriptor(): SchemaSourceDescriptor {
     // OPTIONAL, and the one place hand-written knowledge genuinely belongs: BUSINESS RULES the
     // SDK cannot derive from structure OR data, because nothing in the documents records them.
     // Keyed "Collection.field", or "Collection.parent.child" for a nested one, and reaches the
-    // agent's prompt as `MEANS: ...`. Two real examples from the reference integration:
+    // agent's prompt as `MEANS: ...`. Two real examples, from an actual production deployment:
     //
     //   "Order.branch": "An order with NO branch is not unassigned — it belongs to the branch
     //                    flagged isMain. Never report branch-less orders as their own bucket."
