@@ -1,0 +1,50 @@
+{
+  "name": "@hanexis/agentic-sdk-client",
+  "version": "0.1.0",
+  "description": "Thin client library for the standalone Hanexis Agentic AI SDK service — start a turn, stream results, and implement the query-callback contract without hand-rolling the HTTP plumbing.",
+  "type": "module",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "license": "MIT",
+  "author": "Hanexis",
+  "homepage": "https://github.com/Rittz-digital/agentic-sdk-client#readme",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Rittz-digital/agentic-sdk-client.git"
+  },
+  "bugs": {
+    "url": "https://github.com/Rittz-digital/agentic-sdk-client/issues"
+  },
+  "keywords": [
+    "agentic",
+    "ai-agent",
+    "llm",
+    "mongodb",
+    "sdk-client"
+  ],
+  "publishConfig": {
+    "access": "public"
+  },
+  "bin": {
+    "hanexis-agentic-sdk": "bin/install-skill.mjs"
+  },
+  "files": [
+    "dist",
+    "bin",
+    "SKILL.md",
+    "SKILL-mongodb.md",
+    "README.md",
+    "LICENSE"
+  ],
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run",
+    "prepublishOnly": "npm run typecheck && npm test && npm run build"
+  },
+  "devDependencies": {
+    "@types/node": "^22.10.0",
+    "typescript": "^5.6.3",
+    "vitest": "^5.0.1"
+  }
+}
