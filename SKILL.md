@@ -209,6 +209,62 @@ already resolved from the underlying query.
 - **Render tables as real tables.** `renderTable` exists so long results are not written as markdown,
   where they hit the reply's length limit and truncate mid-row.
 
+## 5.5. Letting the agent ask the user something — `askUser`
+
+Not specific to charts or products. Any time the agent would otherwise have to guess between a few
+reasonable options, or needs one piece of information only the user can supply, it calls this ONE
+generic tool — offering a chart type when several would fit, disambiguating two same-named records,
+confirming before something consequential, collecting an email address, anything of that shape.
+
+```ts
+for (const call of result.toolCalls) {
+  if (call.name === "askUser") showPicker(call.result.awaitingInput);
+}
+// awaitingInput: { prompt, options: [{ id, label, description?, value? }], allowFreeText, freeTextPlaceholder? }
+```
+
+Build **one generic picker component** for this — a prompt, a button per option, and (unless
+`allowFreeText` is `false`) a free-text box for an answer that isn't one of the options. Do not build
+a separate picker per use case; that is exactly the duplication this tool exists to avoid.
+
+- **`value` is opaque and optional.** The agent may attach a ready-to-use payload to an option — most
+  usefully a fully-built chart spec for that chart type, computed from data it already gathered this
+  turn — so picking the option costs no further lookup. Your UI does nothing with it except echo it
+  back; treat it as an arbitrary JSON blob.
+- **Only the LAST message's `askUser` call matters.** One from an earlier turn was already answered or
+  abandoned; re-surfacing it lets the user answer a question that no longer has anywhere to go.
+- **Round-tripping the pick.** The turn contract (§3) is a flat `userMessage` string with no separate
+  side-channel field, so when the user picks an option, send a message like `"[User picked: <label>]"`
+  followed by `JSON.stringify(value)` on the next line if the option had one — appended to (or in place
+  of) whatever `userMessage` you'd otherwise send. The agent reads that prefix as the answer to its own
+  question, not a new one, and reuses the `value` verbatim rather than recomputing it. Typing free text
+  instead just sends that text as an ordinary message — nothing special to do there.
+
+## 5.6. Naming the conversation (optional, and not the SDK's job)
+
+Threads — and therefore thread titles — are a storage concept, and the SDK holds no database and no
+thread id anywhere in its contract (§ intro). If your UI lists past conversations by name, that
+naming is entirely yours to build, the same way persistence and history windowing are (§3, "History
+is yours"). This is the pattern that works well, if you want one:
+
+- **A second, separate, cheap model call** — not part of `runTurn`, not blocking the real answer.
+  Summarize the user's first message into a short title, `reasoning: "none"`, tight timeout (a title
+  is cosmetic and must never be what makes a turn feel slow).
+- **Fire it after the reply is already sent**, not awaited inline — the thread list just reflects the
+  new title whenever it's next fetched. Awaiting it before closing the response holds up everything
+  the user is actually waiting on for a purely decorative label.
+- **Fall back to a truncated copy of the message** on any failure (missing key, rate limit, malformed
+  response) — never fail the send over a title.
+- **Retry titling while the title still says nothing** — a thread opened with "hi" has no topic to
+  summarize yet; recognize that case (a fixed placeholder title, e.g. "Just saying hi", is simplest)
+  and try again once a real question arrives, rather than generating from the first message only and
+  leaving every greeting-opened thread mistitled forever.
+- **Never title off an `askUser` pick.** A picked option's label (e.g. "Bar chart") is a UI button's
+  text, not something the user said about their actual topic — generating a title from it renames the
+  thread away from what it's really about. Skip titling whenever the message being sent is a pick
+  response (you already have this signal: it is exactly the case carrying the `"[User picked: ...]"`
+  round-trip text from §5.5, so gate title generation on that being absent, not on message content).
+
 ## 6. Errors
 
 ```ts
@@ -240,6 +296,8 @@ whatever "stop" control your UI has.
 - [ ] `currencySymbol` set if any field is money
 - [ ] `totalMatching` returned on every query
 - [ ] Chart and table specs rendered by your UI
+- [ ] `askUser` has one generic picker (options + free text) — not a per-case component
+- [ ] Thread titling (if you have it) is your own cheap, non-blocking, fire-after-reply call — never generated from an `askUser` pick
 - [ ] `AgentRefusedError` renders as a normal reply; only `userMessage` shown to users
 
 Then work through the checklist in your database guide — that is where the query-level requirements
