@@ -56,7 +56,8 @@ export type SchemaSourceDescriptor = {
 
 export type QueryRequest = {
   collection: string;
-  kind: "find" | "aggregate" | string;
+  /** "find"/"aggregate" read; "update"/"delete" mutate — only offered to the model when `AgentSessionConfig.permissions` grants them. */
+  kind: "find" | "aggregate" | "update" | "delete" | string;
   query: unknown;
   limit?: number;
   /** `find`-only: how many matching documents to skip — pages past the per-page cap. */
@@ -67,6 +68,8 @@ export type QueryRequest = {
   sort?: unknown;
   /** `find`-only: preferred way to search a name/text field, instead of a hand-written `$regex`. */
   nameSearch?: { term: string; fields: string[] };
+  /** `update`-only: fields to set — your own callback decides what the update means for your data. */
+  update?: Record<string, unknown>;
 };
 
 export type QueryResult = {
@@ -76,6 +79,15 @@ export type QueryResult = {
   totalMatching?: number;
   documents?: unknown[];
   error?: string;
+  /** `update`/`delete`-only: how many documents the mutation actually touched. */
+  modifiedCount?: number;
+};
+
+/** One caller-defined tool with no data-query shape (send an email, export a file) — see the SDK's own `types.ts` for the full contract. */
+export type CustomToolDefinition = {
+  name: string;
+  description: string;
+  parameters: Record<string, unknown>;
 };
 
 export type TopicScopeRule = { label: string; pattern: string };
@@ -96,6 +108,15 @@ export type AgentSessionConfig = {
   scopeDescription?: string;
   /** How monetary values should be written, e.g. "₹" — see the SDK's own `types.ts` for why this cannot be inferred from the data. */
   currencySymbol?: string;
+  /**
+   * What this session's agent may DO, not just see. Defaults to `["read"]` when omitted — a
+   * read-only agent unless you explicitly grant more. `"write"` offers the `performAction` tool
+   * for updates, `"delete"` for deletes (grant both if you want both). Your OWN callback must
+   * still independently re-check this before applying a mutation — see the SDK's own `types.ts`.
+   */
+  permissions?: ("read" | "write" | "delete")[];
+  /** Caller-defined tools with no data-query shape — send an email, export a file. See `CustomToolDefinition`. */
+  customTools?: CustomToolDefinition[];
 };
 
 export type TurnStreamEvent =

@@ -1,4 +1,4 @@
-import type { QueryRequest, QueryResult } from "./types.js";
+import type { CustomToolDefinition, QueryRequest, QueryResult } from "./types.js";
 
 /**
  * What YOUR application supplies to handle a query callback — the one function where your real
@@ -7,6 +7,13 @@ import type { QueryRequest, QueryResult } from "./types.js";
  * integration is expected to write by hand.
  */
 export type QueryExecutor = (request: QueryRequest, allowedCollections: string[]) => Promise<QueryResult>;
+
+/**
+ * What YOUR application supplies to run a custom tool call (send an email, export a file — see
+ * `CustomToolDefinition`). Only needed if you pass `customTools` in `AgentSessionConfig`; omit
+ * `opts.executeCustomTool` entirely if you have none. `name` is one of the names you declared.
+ */
+export type CustomToolExecutor = (name: string, args: Record<string, unknown>) => Promise<{ result?: unknown; error?: string }>;
 
 /**
  * Minimal in-memory session-scope tracker — what `allowedCollections` a given `sessionId` was
@@ -61,32 +68,57 @@ export function createInMemorySessionScopeStore(ttlMs = 5 * 60_000): SessionScop
  *   since the scope-registration and the turn-start are two different HTTP calls in your own
  *   server that only you can sequence correctly.)
  * @param opts.execute Your real query executor — see `QueryExecutor`.
+ * @param opts.executeCustomTool Your custom-tool dispatcher — see `CustomToolExecutor`. Only
+ *   required if `AgentSessionConfig.customTools` is non-empty on the turns you start; a custom
+ *   tool call arriving with none configured is rejected with a clear error rather than throwing.
  */
 export function createQueryCallbackHandler(opts: {
   callbackAuthToken: string;
   sessionScopeStore?: SessionScopeStore;
   execute: QueryExecutor;
+  executeCustomTool?: CustomToolExecutor;
 }) {
   const store = opts.sessionScopeStore ?? createInMemorySessionScopeStore();
 
   return {
     store,
     /** Call this with the parsed request body and the raw Authorization header value. Framework-agnostic — see the module doc comment for wiring examples. */
-    async handle(authorizationHeader: string | null, body: { sessionId?: string; request?: QueryRequest }): Promise<{ status: number; body: QueryResult | { error: string } }> {
+    async handle(
+      authorizationHeader: string | null,
+      body: { sessionId?: string; request?: QueryRequest; customTool?: { name?: string; args?: Record<string, unknown> } },
+    ): Promise<{ status: number; body: QueryResult | { result?: unknown; error?: string } }> {
       if (authorizationHeader !== `Bearer ${opts.callbackAuthToken}`) {
         return { status: 401, body: { error: "Unauthorized" } };
       }
       const sessionId = body?.sessionId;
-      const request = body?.request;
-      if (typeof sessionId !== "string" || !request || typeof request.collection !== "string") {
+      if (typeof sessionId !== "string") {
         return { status: 400, body: { error: "Malformed callback request" } };
       }
       const allowedCollections = store.get(sessionId);
       if (!allowedCollections) {
         return { status: 403, body: { error: "Unknown or expired session" } };
       }
+
+      if (body.customTool) {
+        const { name, args } = body.customTool;
+        if (typeof name !== "string" || !args || typeof args !== "object") {
+          return { status: 400, body: { error: "Malformed custom tool callback request" } };
+        }
+        if (!opts.executeCustomTool) {
+          return { status: 500, body: { error: `Received a call for custom tool "${name}" but no executeCustomTool was configured.` } };
+        }
+        const result = await opts.executeCustomTool(name, args);
+        return { status: 200, body: result };
+      }
+
+      const request = body?.request;
+      if (!request || typeof request.collection !== "string") {
+        return { status: 400, body: { error: "Malformed callback request" } };
+      }
       const result = await opts.execute(request, allowedCollections);
       return { status: 200, body: result };
     },
   };
 }
+
+export type { CustomToolDefinition };

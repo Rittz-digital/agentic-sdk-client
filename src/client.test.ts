@@ -120,3 +120,38 @@ describe("historyToAgentMessages", () => {
     expect(historyToAgentMessages([])).toEqual([]);
   });
 });
+
+describe("runTurn — session payload", () => {
+  it("forwards permissions and customTools into the session sent to the SDK", async () => {
+    let sentBody: any;
+    const client = new AgenticSdkClient({ sdkUrl: "http://sdk.invalid", apiKey: "k" });
+    await withStubbedFetch(
+      async (_url: unknown, init: any) => {
+        sentBody = JSON.parse(init.body);
+        return new Response('{"type":"done","replyText":"ok","toolCalls":[],"schemaInferenceRan":false}\n', { status: 200 });
+      },
+      () =>
+        client.runTurn({
+          ...TURN,
+          permissions: ["read", "write"],
+          customTools: [{ name: "sendEmail", description: "Send an email.", parameters: { type: "object", properties: {} } }],
+        } as never),
+    );
+    expect(sentBody.session.permissions).toEqual(["read", "write"]);
+    expect(sentBody.session.customTools).toEqual([{ name: "sendEmail", description: "Send an email.", parameters: { type: "object", properties: {} } }]);
+  });
+
+  it("omits permissions/customTools from the session when not supplied", async () => {
+    let sentBody: any;
+    const client = new AgenticSdkClient({ sdkUrl: "http://sdk.invalid", apiKey: "k" });
+    await withStubbedFetch(
+      async (_url: unknown, init: any) => {
+        sentBody = JSON.parse(init.body);
+        return new Response('{"type":"done","replyText":"ok","toolCalls":[],"schemaInferenceRan":false}\n', { status: 200 });
+      },
+      () => client.runTurn(TURN as never),
+    );
+    expect(sentBody.session.permissions).toBeUndefined();
+    expect(sentBody.session.customTools).toBeUndefined();
+  });
+});

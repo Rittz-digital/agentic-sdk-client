@@ -1,5 +1,5 @@
 import { randomUUID } from "node:crypto";
-import type { AgentMessage, AgentMessagePart, AgentSessionConfig, SchemaSourceDescriptor, TopicScopeRule, TurnStreamEvent } from "./types.js";
+import type { AgentMessage, AgentMessagePart, AgentSessionConfig, CustomToolDefinition, SchemaSourceDescriptor, TopicScopeRule, TurnStreamEvent } from "./types.js";
 import type { SessionScopeStore } from "./callback-handler.js";
 
 /**
@@ -32,6 +32,14 @@ export type RunTurnOptions = {
    * and guesses inconsistently within a single conversation.
    */
   currencySymbol?: string;
+  /**
+   * What this session's agent may DO to your data, not just see. Defaults to `["read"]` when
+   * omitted — a read-only agent unless you explicitly grant more. See `AgentSessionConfig` in
+   * types.ts for the full contract, including why your own callback must still re-check this.
+   */
+  permissions?: ("read" | "write" | "delete")[];
+  /** Caller-defined tools with no data-query shape — send an email, export a file. See `CustomToolDefinition` in types.ts. */
+  customTools?: CustomToolDefinition[];
   /** Prior turns in this conversation, oldest first. Omit or pass [] for a fresh conversation. */
   history?: AgentMessage[];
   userMessage: string;
@@ -203,6 +211,8 @@ export class AgenticSdkClient {
       outOfScopeTopics: options.outOfScopeTopics,
       scopeDescription: options.scopeDescription,
       currencySymbol: options.currencySymbol,
+      permissions: options.permissions,
+      customTools: options.customTools,
     };
 
     // Registered BEFORE the request fires — a query callback that raced ahead of this line
