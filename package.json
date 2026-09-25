@@ -1,6 +1,6 @@
 {
   "name": "@hanexis/agentic-sdk-client",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "Thin client library for the standalone Hanexis Agentic AI SDK service — start a turn, stream results, and implement the query-callback contract without hand-rolling the HTTP plumbing.",
   "type": "module",
   "main": "dist/index.js",
