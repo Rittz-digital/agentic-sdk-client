@@ -88,6 +88,13 @@ export type CustomToolDefinition = {
   name: string;
   description: string;
   parameters: Record<string, unknown>;
+  /**
+   * When true, the SDK refuses to call this tool unless an `askUser` call already appears in a
+   * PRIOR turn's history — a code-level confirmation gate for any tool whose effect is real and
+   * hard to undo (sending an email, posting a message). See the SDK's own `types.ts` for the full
+   * contract and why prompt wording alone was not enough to hold this.
+   */
+  requiresPriorConfirmation?: boolean;
 };
 
 export type TopicScopeRule = { label: string; pattern: string };
