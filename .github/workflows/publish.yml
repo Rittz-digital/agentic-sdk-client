@@ -1,0 +1,44 @@
+name: Publish to npm
+
+# Fires when `npm run deploy` (see package.json) pushes a version tag (v0.2.0, v0.2.1, ...).
+# Runs on GitHub's own Linux runner, never the developer's machine — this is what the whole
+# workflow exists to avoid: `npm ci`/`npm test`/`npm publish` failing locally because of a
+# Windows-mounted (/mnt/d) WSL filesystem tripping npm's optional-dependency native-binding
+# resolution (npm/cli#4828). A fresh Linux runner has no such cross-filesystem boundary at all.
+on:
+  push:
+    tags:
+      - "v*"
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      id-token: write # provenance — npm records this build came from this exact commit/workflow
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          registry-url: "https://registry.npmjs.org"
+
+      # Clean, reproducible install from package-lock.json — same guarantee `npm ci` always gives,
+      # and incidentally the thing a corrupted local node_modules never had.
+      - run: npm ci
+
+      # Mirrors prepublishOnly exactly, but as its own explicit CI step: if any of these fail, the
+      # workflow stops here and `npm publish` below never runs, so a broken build can never reach
+      # the registry — the same guarantee prepublishOnly gives locally, just verified on a clean
+      # machine instead of trusting whatever state a developer's own machine happens to be in.
+      - run: npm run typecheck
+      - run: npm test
+      - run: npm run build
+
+      # The package.json version was already bumped and tagged locally by `npm run deploy` before
+      # this workflow ever started — this step only publishes what's already committed, it never
+      # decides the version number itself.
+      - run: npm publish --provenance --access public
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}

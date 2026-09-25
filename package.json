@@ -41,9 +41,9 @@
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
     "prepublishOnly": "npm run typecheck && npm test && npm run build",
-    "release:patch": "npm version patch && npm publish && git push && git push --tags",
-    "release:minor": "npm version minor && npm publish && git push && git push --tags",
-    "release:major": "npm version major && npm publish && git push && git push --tags"
+    "deploy:patch": "npm version patch && git push --follow-tags",
+    "deploy:minor": "npm version minor && git push --follow-tags",
+    "deploy:major": "npm version major && git push --follow-tags"
   },
   "devDependencies": {
     "@types/node": "^22.10.0",
