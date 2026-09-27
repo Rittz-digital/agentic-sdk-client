@@ -13,13 +13,15 @@ callback endpoint you implement below.
 npx @hanexis/agentic-sdk-client --skill
 ```
 
-Writes two integration guides into your project (`.claude/skills/` by default, or
+Writes three integration guides into your project (`.claude/skills/` by default, or
 `--target=cursor|copilot|agents`) so your coding agent knows how to wire this package up:
 
 - **SKILL.md** — the database-neutral half: the turn contract, what belongs in `fieldSemantics`,
   rendering the charts and tables a turn returns, error handling.
 - **SKILL-mongodb.md** — schema extraction, the query callback, and the query hardening that
   LLM-written queries need.
+- **SKILL-custom-tools.md** — letting the agent act (send an email, post a message): declaring and
+  dispatching custom tools, the confirmation gate for irreversible actions, and branded output.
 
 They describe the contract only; none of the SDK's internals. **MongoDB via Mongoose is the only
 database covered today** — the agent writes Mongo filters and aggregation pipelines, so a SQL

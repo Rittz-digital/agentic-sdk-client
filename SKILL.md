@@ -1,6 +1,6 @@
 ---
 name: agentic-sdk-client
-description: Integrate the Hanexis Agentic SDK into an application — the turn contract, business rules, charts and tables, and error handling, plus a pointer to the guide for your database.
+description: Integrate the Hanexis Agentic SDK into an application — the turn contract, business rules, charts and tables, askUser, custom tools, and error handling, plus pointers to the guides for your database and for custom tools.
 ---
 
 # Integrating the Agentic SDK
@@ -240,7 +240,16 @@ a separate picker per use case; that is exactly the duplication this tool exists
   question, not a new one, and reuses the `value` verbatim rather than recomputing it. Typing free text
   instead just sends that text as an ordinary message — nothing special to do there.
 
-## 5.6. Naming the conversation (optional, and not the SDK's job)
+## 5.6. Letting the agent act — custom tools
+
+To let the agent **do** something (send an email, post a message, export a file), declare it in
+`customTools` on the turn and dispatch it with `executeCustomTool` on the same callback handler. The
+SDK forwards the call; your code performs it. Anything irreversible should set
+`requiresPriorConfirmation: true`, which makes the SDK refuse the call until the user has answered an
+`askUser` confirmation in an earlier turn. Full guide, including how the confirmation turn renders
+and how to keep branded output out of the model's hands: [SKILL-custom-tools.md](./SKILL-custom-tools.md).
+
+## 5.7. Naming the conversation (optional, and not the SDK's job)
 
 Threads — and therefore thread titles — are a storage concept, and the SDK holds no database and no
 thread id anywhere in its contract (§ intro). If your UI lists past conversations by name, that
@@ -301,4 +310,4 @@ whatever "stop" control your UI has.
 - [ ] `AgentRefusedError` renders as a normal reply; only `userMessage` shown to users
 
 Then work through the checklist in your database guide — that is where the query-level requirements
-live.
+live — and, if you declare any custom tools, the one in [SKILL-custom-tools.md](./SKILL-custom-tools.md).

@@ -18,11 +18,11 @@ import { fileURLToPath } from "node:url";
 const packageRoot = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 
 /**
- * SKILL.md is the index — the database-neutral half plus a pointer to the dialect guide beside it.
- * Both are installed together, because the index is not much use on its own and a reader who has to
- * go fetch the second file will not.
+ * SKILL.md is the index — the database-neutral half plus pointers to the guides beside it (the
+ * database dialect, and custom tools). All are installed together, because the index is not much use
+ * on its own and a reader who has to go fetch a linked file will not.
  */
-const SKILL_FILES = ["SKILL.md", "SKILL-mongodb.md"];
+const SKILL_FILES = ["SKILL.md", "SKILL-mongodb.md", "SKILL-custom-tools.md"];
 
 /**
  * Where each tool looks for skills. Claude Code reads `.claude/skills/<name>/SKILL.md`; the others
@@ -49,16 +49,17 @@ function fileNameFor(target, sourceName) {
 /**
  * Rewrites the guides' links to each other so they still resolve after install.
  *
- * The files reference each other as `./SKILL-mongodb.md` and `./SKILL.md`, which is correct inside
+ * The files reference each other as `./SKILL-<guide>.md` and `./SKILL.md`, which is correct inside
  * the package and inside Claude Code's own skill directory. Every other target flattens them into a
  * shared rules folder under prefixed names, where those links would 404 — and a broken link between
  * an index and the guide it points at defeats the split.
  */
 function rewriteCrossLinks(contents, target) {
   if (target === "claude") return contents;
-  return contents
-    .replace(/\.\/SKILL-mongodb\.md/g, fileNameFor(target, "SKILL-mongodb.md"))
-    .replace(/\.\/SKILL\.md/g, fileNameFor(target, "SKILL.md"));
+  return SKILL_FILES.reduce(
+    (text, name) => text.replaceAll(`./${name}`, fileNameFor(target, name)),
+    contents,
+  );
 }
 
 function parseArgs(argv) {
@@ -83,7 +84,8 @@ function usage() {
     --force           overwrite an existing copy
     --help            show this
 
-  Writes two markdown files: an index and the guide for your database.
+  Writes three markdown files: an index, the guide for your database, and
+  the guide for custom tools.
   Nothing else is touched.
 `);
 }
