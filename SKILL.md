@@ -155,7 +155,8 @@ const result = await client.runTurn({
 
 ## 4. The callback route
 
-Thin, and it must share one object with the client:
+`createQueryCallbackHandler` is **framework-agnostic on purpose** — it imports no HTTP framework at
+all. Build it once, the same way regardless of what you route with:
 
 ```ts
 export const sessionScopeStore = createInMemorySessionScopeStore();   // exported from run-sdk-turn
@@ -165,17 +166,40 @@ const handler = createQueryCallbackHandler({
   sessionScopeStore,                    // SAME instance the client uses
   execute: executeQueryCallback,        // your database-specific function
 });
+```
 
-export async function POST(request) {
+Then adapt `handler.handle(authorizationHeader, body)` to your router — it takes the raw
+`Authorization` header value and the already-JSON-parsed body, and returns `{ status, body }` for
+you to send back verbatim. That is the entire contract; everything below is just "how do I get
+those two things out of my framework's request object and send `{ status, body }` back."
+
+**Next.js (App Router)** — a `Response`/`Headers` runtime is already global, no import needed:
+
+```ts
+export async function POST(request: Request) {
   const body = await request.json().catch(() => null);
   const { status, body: responseBody } = await handler.handle(request.headers.get("authorization"), body ?? {});
   return Response.json(responseBody, { status });
 }
 ```
 
+**Express** — the same handler, wired to `req`/`res` instead (needs `express.json()` middleware so
+`req.body` is already parsed):
+
+```ts
+app.post("/api/agentic-sdk/query-callback", express.json(), async (req, res) => {
+  const { status, body: responseBody } = await handler.handle(req.headers.authorization ?? null, req.body ?? {});
+  res.status(status).json(responseBody);
+});
+```
+
+**Any other framework** follows the same three-line shape: read the `Authorization` header, read
+the parsed JSON body, call `handler.handle(...)`, send its `{ status, body }` back as your
+framework's JSON response with that status code. Nothing else about this route is framework-specific.
+
 The client registers each turn's scope into that store immediately before the request fires, and the
 callback reads it back when the SDK calls in. Two instances means every callback is rejected as an
-unknown session.
+unknown session — the same rule whichever framework hosts the route.
 
 Whatever your database, `execute` must:
 
@@ -239,6 +263,11 @@ a separate picker per use case; that is exactly the duplication this tool exists
   of) whatever `userMessage` you'd otherwise send. The agent reads that prefix as the answer to its own
   question, not a new one, and reuses the `value` verbatim rather than recomputing it. Typing free text
   instead just sends that text as an ordinary message — nothing special to do there.
+- **A picker also needs a way to say NO, and that is your endpoint, not a `runTurn` call.** There is
+  nothing for the model to decide when the user declines, so build a separate cancel endpoint that
+  checks the last message is still an open `askUser`, saves a fixed "declined" exchange, and returns
+  — no model call. A dismiss button that only hides the picker client-side leaves the agent thinking
+  the draft is still pending on its next turn. Full pattern: [SKILL-custom-tools.md §3.4](./SKILL-custom-tools.md).
 
 ## 5.6. Letting the agent act — custom tools
 
@@ -246,8 +275,11 @@ To let the agent **do** something (send an email, post a message, export a file)
 `customTools` on the turn and dispatch it with `executeCustomTool` on the same callback handler. The
 SDK forwards the call; your code performs it. Anything irreversible should set
 `requiresPriorConfirmation: true`, which makes the SDK refuse the call until the user has answered an
-`askUser` confirmation in an earlier turn. Full guide, including how the confirmation turn renders
-and how to keep branded output out of the model's hands: [SKILL-custom-tools.md](./SKILL-custom-tools.md).
+`askUser` confirmation in an earlier turn — enforced fully in code now, including ending the turn on
+any `askUser` call and recognizing a drafted-but-unconfirmed action by its shape even when the model
+never calls `askUser` at all. Full guide — the confirmation mechanics, attaching real files by
+reference across several send tools, and keeping branded output out of the model's hands:
+[SKILL-custom-tools.md](./SKILL-custom-tools.md).
 
 ## 5.7. Naming the conversation (optional, and not the SDK's job)
 

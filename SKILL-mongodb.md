@@ -109,27 +109,9 @@ Non-obvious requirements, each from a real failure:
 
 ### The route
 
-Thin, and it must share one object with the client:
-
-```ts
-export const sessionScopeStore = createInMemorySessionScopeStore();   // exported from run-sdk-turn
-
-const handler = createQueryCallbackHandler({
-  callbackAuthToken: process.env.CALLBACK_TOKEN!,
-  sessionScopeStore,                    // SAME instance the client uses
-  execute: executeQueryCallback,
-});
-
-export async function POST(request) {
-  const body = await request.json().catch(() => null);
-  const { status, body: responseBody } = await handler.handle(request.headers.get("authorization"), body ?? {});
-  return Response.json(responseBody, { status });
-}
-```
-
-The client registers each turn's scope into that store immediately before the request fires, and
-the callback reads it back when the SDK calls in. Two instances means every callback is rejected as
-an unknown session.
+Wire `executeQueryCallback` (above) into `createQueryCallbackHandler` and expose it over HTTP — see
+[SKILL.md §4](./SKILL.md), which is database-neutral and shows both Next.js and Express (the
+handler itself imports no HTTP framework, so nothing there is Mongo-specific either).
 
 ## 3. Query hardening — the part that is bigger than you expect
 
